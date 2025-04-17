@@ -41,6 +41,15 @@ function Boar:init(type) Enemy:init() -- superclass const.
     self.score = 200
     self.damage = 20
 
+    -- For particles
+    self.deathParticles = love.graphics.newParticleSystem(
+    love.graphics.newImage("graphics/mobs/boar/splatter.png"), 30)
+    self.deathParticles:setParticleLifetime(0.3, 0.5)
+    self.deathParticles:setSizes(0.5, 1)
+    self.deathParticles:setLinearAcceleration(-20, -20, 20, 20)
+    self.deathParticles:setColors(1, 0, 0, 1, 1, 0, 0, 0)
+
+
     self:setAnimation("idle",idleSprite, idleAnim)
     self:setAnimation("walk",walkSprite, walkAnim)
     self:setAnimation("hit", hitSprite, hitAnim)
@@ -67,19 +76,17 @@ end
     
 
 function Boar:update(dt, stage)
-    -- For the damage numbers
+    -- For damage numbers
     for i = #self.damageTexts, 1, -1 do
         local d = self.damageTexts[i]
         d.t = d.t - dt
         d.y = d.y - 20 * dt
         if d.t <= 0 then table.remove(self.damageTexts, i) end
     end
-    -- For the death effect
+
+    -- For death particle system
     if self.deathParticles then
-        self.deathParticles.t = self.deathParticles.t + dt
-        if self.deathParticles.t > 0.5 then
-            self.deathParticles = nil
-        end
+        self.deathParticles:update(dt)
     end
     if self.state == "walk" then
         if not stage:bottomCollision(self,1,0) then -- not on solid ground
@@ -100,6 +107,7 @@ function Boar:update(dt, stage)
     end -- end if walking state
     Timer.update(dt) -- attention, Timer.update uses dot, and not :
     self.animations[self.state]:update(dt)
+    self.deathParticles:update(dt)
 end -- end function
     
 function Boar:hit(damage, direction)
@@ -113,17 +121,15 @@ function Boar:hit(damage, direction)
     table.insert(self.damageTexts, {value = damage, x = self.x, y = self.y, t = 1})
     if self.hp <= 0 then
         self.died = true
-        self:spawnDeathParticles()
+        -- Should be the middle of the mob
+        self.deathParticles:setPosition(self.x + 24, self.y + 16) 
+        self.deathParticles:emit(15)
+    
     end
 
     Timer.after(1, function() self:endHit(direction) end)
     Timer.after(0.9, function() self.invincible = false end)
 
-end
-
-
-function Boar:spawnDeathParticles()
-    self.deathParticles = {x = self.x, y = self.y, t = 0}
 end
 
 
@@ -135,21 +141,19 @@ function Boar:endHit(direction)
 end
 
 function Boar:draw()
-    self.animations[self.state]:draw(self.sprites[self.state],
-        math.floor(self.x), math.floor(self.y))
-    for _, d in ipairs(self.damageTexts) do
-        love.graphics.setColor(1, 0.2, 0.2, d.t)
-        love.graphics.print(d.value, d.x, d.y)
+    -- Draw animation
+    self.animations[self.state]:draw(self.sprites[self.state], math.floor(self.x), math.floor(self.y))
+    -- Draw damage numbers
+    if self.damageTexts then
+        love.graphics.setColor(1, 0.2, 0.2)
+        for _, d in ipairs(self.damageTexts) do
+            love.graphics.setColor(1, 0.2, 0.2, d.t)
+            love.graphics.print(d.value, d.x, d.y)
+        end
     end
-    if self.deathParticles then
-        local p = self.deathParticles
-        -- Red to emulate blood
-        love.graphics.setColor(1, 0, 0, 1) 
-        -- Red blot that quickly disapears like a slash
-        love.graphics.polygon("fill", p.x+20, p.y+16, p.x+28, p.y+12, p.x+26, p.y+22, p.x+22, p.y+24)
-
-    end
-    love.graphics.setColor(1,1,1,1) 
+    -- Draw death effect like video games
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.draw(self.deathParticles)
 end
 
 
